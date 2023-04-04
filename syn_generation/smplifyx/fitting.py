@@ -1,3 +1,22 @@
+# -*- coding: utf-8 -*-
+
+# Max-Planck-Gesellschaft zur Förderung der Wissenschaften e.V. (MPG) is
+# holder of all proprietary rights on this computer program.
+# You can only use this computer program if you have closed
+# a license agreement with MPG or you get the right to use the computer
+# program from someone who is authorized to grant you that right.
+# Any use of the computer program without a valid license is prohibited and
+# liable to prosecution.
+#
+# Copyright©2019 Max-Planck-Gesellschaft zur Förderung
+# der Wissenschaften e.V. (MPG). acting on behalf of its Max Planck Institute
+# for Intelligent Systems and the Max Planck Institute for Biological
+# Cybernetics. All rights reserved.
+#
+# Contact: ps-license@tuebingen.mpg.de
+
+
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -55,7 +74,7 @@ def guess_init(model,
     '''
     body_pose = vposer.decode(
         pose_embedding, output_type='aa').view(1, -1) if use_vposer else None
-    print('inti_pose')
+    print('init_pose')
     print(body_pose)
     if use_vposer and model_type == 'smpl':
         wrist_pose = torch.zeros([body_pose.shape[0], 6],
@@ -114,12 +133,15 @@ class FittingMonitor(object):
     def __enter__(self):
         self.steps = 0
         if self.visualize:
-            self.mv = MeshViewer(body_color=self.body_color)
+            # pass #HOANG
+            self.mv = MeshViewer(body_color=self.body_color) #HOANG
         return self
 
     def __exit__(self, exception_type, exception_value, traceback):
         if self.visualize:
-            self.mv.close_viewer()
+            # pass #HOANG
+            self.mv.close_viewer() #HOANG
+            # time.sleep(2) #HOANG
 
     def set_colors(self, vertex_color):
         batch_size = self.colors.shape[0]
@@ -189,7 +211,7 @@ class FittingMonitor(object):
                 model_output = body_model(
                     return_verts=True, body_pose=body_pose)
                 vertices = model_output.vertices.detach().cpu().numpy()
-
+                #HOANG
                 self.mv.update_mesh(vertices.squeeze(),
                                     body_model.faces)
 
@@ -355,6 +377,8 @@ class SMPLifyLoss(nn.Module):
         weights = (joint_weights * joints_conf
                    if self.use_joints_conf else
                    joint_weights).unsqueeze(dim=-1)
+        #HOANG
+        # weights = joints_conf.unsqueeze(dim=-1)  
 
         # Calculate the distance of the projected joints from
         # the ground truth 2D detections
@@ -367,9 +391,6 @@ class SMPLifyLoss(nn.Module):
             pprior_loss = (pose_embedding.pow(2).sum() *
                            self.body_pose_weight ** 2)
         else:
-            #print(body_model_output.body_pose)
-            #print('xxxxx')
-            #print(body_model_output.betas)
             pprior_loss = torch.sum(self.body_pose_prior(
                 body_model_output.body_pose,
                 body_model_output.betas)) * self.body_pose_weight ** 2

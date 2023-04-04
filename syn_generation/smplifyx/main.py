@@ -1,3 +1,24 @@
+# -*- coding: utf-8 -*-
+
+# Max-Planck-Gesellschaft zur Förderung der Wissenschaften e.V. (MPG) is
+# holder of all proprietary rights on this computer program.
+# You can only use this computer program if you have closed
+# a license agreement with MPG or you get the right to use the computer
+# program from someone who is authorized to grant you that right.
+# Any use of the computer program without a valid license is prohibited and
+# liable to prosecution.
+#
+# Copyright©2019 Max-Planck-Gesellschaft zur Förderung
+# der Wissenschaften e.V. (MPG). acting on behalf of its Max Planck Institute
+# for Intelligent Systems and the Max Planck Institute for Biological
+# Cybernetics. All rights reserved.
+#
+# Contact: ps-license@tuebingen.mpg.de
+
+# Modified by Xiaofei Huang (xhuang@ece.neu.edu) and Nihang Fu (nihang@ece.neu.edu)
+# ------------------------------------------------------------------------------
+
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -24,6 +45,14 @@ from prior import create_prior
 import pickle
 
 torch.backends.cudnn.enabled = False
+
+
+# import debugpy
+# debugpy.listen(5678)
+# debugpy.wait_for_client()
+# debugpy.breakpoint()
+
+# input("Press Enter to continue...:")
 
 class Mahalanobis(object):
 
@@ -91,7 +120,7 @@ def main(**args):
         raise ValueError('Unknown float type {}, exiting!'.format(float_dtype))
 
     joint_mapper = JointMapper(dataset_obj.get_model2data())
-
+    
     model_params = dict(model_path=args.get('model_folder'),
                         joint_mapper=joint_mapper,
                         create_global_orient=True,
@@ -114,7 +143,6 @@ def main(**args):
         female_model = smplx.create(gender='female', **model_params)
     else:
         neutral_model = SMIL(gender='neutral', **model_params)
-
     # Create the camera object
     focal_length = args.get('focal_length')
     camera = create_camera(focal_length_x=focal_length,

@@ -6,7 +6,7 @@ from __future__ import division
 # MSCOCO and OpenPose joints
 vertex_ids = {
     'smplh': {
-        'nose':		    332,
+        'nose':		    332,  
         'reye':		    6260,
         'leye':		    2800,
         'rear':		    4071,

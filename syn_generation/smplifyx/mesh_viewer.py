@@ -1,3 +1,22 @@
+# -*- coding: utf-8 -*-
+
+# Max-Planck-Gesellschaft zur Förderung der Wissenschaften e.V. (MPG) is
+# holder of all proprietary rights on this computer program.
+# You can only use this computer program if you have closed
+# a license agreement with MPG or you get the right to use the computer
+# program from someone who is authorized to grant you that right.
+# Any use of the computer program without a valid license is prohibited and
+# liable to prosecution.
+#
+# Copyright©2019 Max-Planck-Gesellschaft zur Förderung
+# der Wissenschaften e.V. (MPG). acting on behalf of its Max Planck Institute
+# for Intelligent Systems and the Max Planck Institute for Biological
+# Cybernetics. All rights reserved.
+#
+# Contact: ps-license@tuebingen.mpg.de
+
+
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -49,7 +68,6 @@ class MeshViewer(object):
 
     def create_mesh(self, vertices, faces, color=(0.3, 0.3, 0.3, 1.0),
                     wireframe=False):
-
         material = self.mat_constructor(
             metallicFactor=0.0,
             alphaMode='BLEND',
@@ -59,7 +77,7 @@ class MeshViewer(object):
 
         rot = self.transf(np.radians(180), [1, 0, 0])
         mesh.apply_transform(rot)
-
+       
         return self.trimesh_to_pymesh(mesh, material=material)
 
     def update_mesh(self, vertices, faces):
