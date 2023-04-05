@@ -13,6 +13,12 @@ def getDepthImage(depth_image_path: pathlib.Path) -> tuple:
     max_depth = np.max(raveled_depth)
     return depth_im, max_depth
 
+def getJointsMapping(joints_json_path: pathlib.Path)->list:
+    f = open(joints_json_path)
+    joints_json = json.load(f)
+    f.close()
+    return joints_json
+
 def getCameraIntrinsics(camera_intrinsics_path: pathlib.Path) -> tuple:
     camera_intrinsics: np.ndarray = np.load(camera_intrinsics_path)
     fx, fy = camera_intrinsics[0, 0], camera_intrinsics[1, 1]
@@ -39,13 +45,27 @@ def keypointsXYZ(flat_keypoints: list, depth_image_path: pathlib.Path, camera_in
 
     return np.array(xyz_keypoints)
 
+def poseTemplate(armature_ob: bpy.types.Object, position: np.ndarray, mapping: dict)->None:
+    print(len(armature_ob.edit_bones))
+    for edit_bone in armature_ob.data.edit_bones:
+        # edit_bone.location = (0, 0, 0)  
+        print(edit_bone.location)
+
+    
+
 JSON_FILE_NAME: str = 'test4160_keypoints.json'
 JSON_PATH: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('tests', JSON_FILE_NAME)
 CAMERA_INTRINSICS_PATH: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('tests', 'camera_intrinsics.npy')
 DEPTH_IMAGE_PATH: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('tests', '4160-DEPTH.png')
+JOINTS_MAPPING_PATH: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('blender-to-coco-mapping.json')
+
+C = bpy.context
+armature = C.view_layer.objects['Coco17']
 
 keypoints_flat = getJSONKeyPoints(JSON_PATH)
 camera_intrinsics = getCameraIntrinsics(CAMERA_INTRINSICS_PATH)
+joints_mapping = getJointsMapping(JOINTS_MAPPING_PATH)
 
 keypoints_xyz = keypointsXYZ(keypoints_flat, DEPTH_IMAGE_PATH, camera_intrinsics)
-print(keypoints_xyz)
+
+poseTemplate(armature, keypoints_xyz, joints_mapping)

@@ -1,0 +1,19 @@
+{
+    "0": {"name": "nose", "mapped": "Nose"},
+    "1": {"name": "left_eye", "mapped": "Eye.L"},
+    "2": {"name": "right_eye", "mapped": "Eye.R"},
+    "3": {"name": "left_ear", "mapped": "Ear.L"},
+    "4": {"name": "right_ear", "mapped": "Ear.R"},
+    "5": {"name": "left_shoulder", "mapped": "Shoulder.L"},
+    "6": {"name": "right_shoulder", "mapped": "Shoulder.R"},
+    "7": {"name": "left_elbow", "mapped": "Elbow.L"},
+    "8": {"name": "right_elbow", "mapped": "Elbow.R"},
+    "9": {"name": "left_wrist", "mapped": "Wrist.L"},
+    "10": {"name": "right_wrist", "mapped": "Wrist.R"},
+    "11": {"name": "left_hip", "mapped": "Hip.L"},
+    "12": {"name": "right_hip", "mapped": "Hip.R"},
+    "13": {"name": "left_knee", "mapped": "Knee.L"},
+    "14": {"name": "right_knee", "mapped": "Knee.R"},
+    "15": {"name": "left_ankle", "mapped": "Ankle.L"},
+    "16": {"name": "right_ankle", "mapped": "Ankle.R"}
+}
