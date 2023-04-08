@@ -93,9 +93,13 @@ def get2DFrom3D(points_3d: np.ndarray, fx: float, fy: float, cx: float, cy: floa
     return np.vstack((y_coords, x_coords))
 
 def savePLY(ply_np_data: np.ndarray, output_path: pathlib.Path, ply_headers_generic: str, ply_format: str) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     ply_np_data = ply_np_data[~np.isnan(ply_np_data).any(axis=1), :]
-    ply_header = ply_headers_generic.format(ply_np_data.shape[0])    
-    np.savetxt(f'{output_path}', ply_np_data, header=ply_header, comments='', encoding='ASCII', fmt=ply_format)
+    if(output_path.suffix == '.npy'):
+        np.save(f'{output_path}', ply_np_data)
+    else:
+        ply_header = ply_headers_generic.format(ply_np_data.shape[0])    
+        np.savetxt(f'{output_path}', ply_np_data, header=ply_header, comments='', encoding='ASCII', fmt=ply_format)
 
 def project3D(rgb_image_path: pathlib.Path, 
               depth_image_path: pathlib.Path, 
@@ -159,7 +163,7 @@ def project3D(rgb_image_path: pathlib.Path,
     ms: pymeshlab.MeshSet = pymeshlab.MeshSet()
     m: pymeshlab.Mesh = pymeshlab.Mesh(pts3D)
     ms.add_mesh(m, depth_image_path.stem)
-    ms.compute_normal_for_point_clouds(k=50, flipflag=True)   
+    ms.compute_normal_for_point_clouds(k=1000, flipflag=True)   
 
     if(down_sample_size > -1):
         # point cloud sampling here to restrict for 2048 or 4096 or as much as you need
@@ -224,11 +228,24 @@ def pcaAlignedPointCloud(ply_np_data: np.ndarray, normalize: bool = True)->np.nd
     if(normalize):
         pca_ply_np_data = normalize_pc(pca_ply_np_data)
     
+
+    min_pt = np.min(pca_ply_np_data, axis=0)
+    max_pt = np.max(pca_ply_np_data, axis=0)
+    size = max_pt - min_pt
+    center = min_pt + (size * 0.5)
+    view_dir = np.zeros((3))
+    view_dir[np.argmin(size)] = -10000.0
+    view_dir[np.argmax(size)] = -10000.0
+    view_pos = center + view_dir
+    # print(min_pt, max_pt, size, np.argmax(size))
+    # print(view_dir)
+    
     m = pymeshlab.Mesh(pca_ply_np_data)
     ms.add_mesh(m, 'pca_mesh')
-    ms.compute_normal_for_point_clouds(k=50, flipflag=True, viewpos=[0, 50, 0])
+    ms.compute_normal_for_point_clouds(k=50, flipflag=True, viewpos=view_pos)        
+    
     m = ms.current_mesh()
-    normals = -m.vertex_normal_matrix()
+    normals = m.vertex_normal_matrix()
     pca_ply_np_data = np.hstack((pca_ply_np_data, normals, ply_np_data[:,6:]))
     return pca_ply_np_data
 
@@ -256,6 +273,7 @@ def batchDepthToPLY(
     glob_result = list(glob_result)
 
     for i, d_png in tqdm.tqdm(enumerate(glob_result), dynamic_ncols=True, total=len(glob_result)):
+        # print(d_png.stem)
         rgb_name: str = d_png.stem.split('-')[0]
         rgb_image: pathlib.Path = d_png.parent.parent.joinpath('RGB').joinpath(f'{rgb_name}-RGB.png')
         seg_rgb_image: pathlib.Path = d_png.parent.parent.joinpath('SEGMENTATION').joinpath(f'{rgb_name}-SEGMENTATION.png')
@@ -274,13 +292,13 @@ def batchDepthToPLY(
         ply_np_data = ply_np_data[downsampled_indices]
 
 
-        output_path = output_folder.joinpath(f'{d_png.stem}.ply')
+        output_path = output_folder.joinpath(f'{d_png.stem}.npy')
         savePLY(ply_np_data, output_path, PLY_HEADER_WITH_NORMALS_COLORS, PLY_FORMAT_WITH_NORMALS_COLORS)
 
         if(save_pca_cloud):
             output_pca_folder = output_folder.parent.joinpath('PCA_PLY')
             output_pca_folder.mkdir(parents=True, exist_ok=True)
-            output_path_pca = output_pca_folder.joinpath(f'{d_png.stem}.ply')
+            output_path_pca = output_pca_folder.joinpath(f'{d_png.stem}.npy')
             pca_ply_np_data = pcaAlignedPointCloud(ply_np_data)
             savePLY(pca_ply_np_data, output_path_pca, PLY_HEADER_WITH_NORMALS_COLORS, PLY_FORMAT_WITH_NORMALS_COLORS)
 
