@@ -117,13 +117,13 @@ def doLSE(context: bpy.types.Context, mesh: bpy.types.Object, mapping: dict, map
             hook.location = local_position
     
 
-JSON_FILE_NAME: str = 'test1_keypoints.json'
+JSON_FILE_NAME: str = 'test4160_keypoints.json'
 JSON_PATH: pathlib.Path = pathlib.Path(
     bpy.path.abspath('//')).joinpath('tests', JSON_FILE_NAME)
 CAMERA_INTRINSICS_PATH: pathlib.Path = pathlib.Path(
     bpy.path.abspath('//')).joinpath('tests', 'camera_intrinsics.npy')
 DEPTH_IMAGE_PATH: pathlib.Path = pathlib.Path(
-    bpy.path.abspath('//')).joinpath('tests', '1-DEPTH.png')
+    bpy.path.abspath('//')).joinpath('tests', '4160-DEPTH.png')
 JOINTS_MAPPING_PATH: pathlib.Path = pathlib.Path(
     bpy.path.abspath('//')).joinpath('blender-to-coco-mapping.json')
 JOINTS_MAPPING_PATH_TO_BLENDER: pathlib.Path = pathlib.Path(
@@ -141,4 +141,4 @@ keypoints_xyz: np.ndarray = keypointsXYZ(
     keypoints_flat, DEPTH_IMAGE_PATH, camera_intrinsics)
 
 doLSE(C, mesh, joints_mapping, keypoints_xyz)
-bpy.ops.wm.save_as_mainfile(filepath=bpy.path.abspath(f'//{JSON_PATH.stem}.blend'))
+bpy.ops.wm.save_as_mainfile(filepath=bpy.path.abspath(f'//{JSON_PATH.parent.name}/{JSON_PATH.stem}.blend'))
