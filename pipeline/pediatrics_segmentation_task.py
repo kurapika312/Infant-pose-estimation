@@ -87,14 +87,14 @@ def onlykeep_person_class(oim, outputs):
 
   # index to keep whose class == 0
   indx_to_keep = (cls == 0).nonzero().flatten().tolist()
-
-  print(masks.cpu().numpy().shape)
     
   # only keeping index  corresponding arrays
   cls1 = torch.tensor(np.take(cls.cpu().numpy(), indx_to_keep))
   scores1 = torch.tensor(np.take(scores.cpu().numpy(), indx_to_keep))
   boxes1 = Boxes(torch.tensor(np.take(boxes.tensor.cpu().numpy(), indx_to_keep, axis=0)))
   masks1 = torch.tensor(np.take(masks.cpu().numpy(), indx_to_keep, axis=0))
+  np_mask = np.zeros(oim.shape)
+  np_mask[masks1.clone().squeeze(0).numpy()] = 255
   
   # create new instance obj and set its fields
   obj = detectron2.structures.Instances(image_size=(oim.shape[0], oim.shape[1]))
@@ -102,19 +102,21 @@ def onlykeep_person_class(oim, outputs):
   obj.set('scores', scores1)
   obj.set('pred_boxes',boxes1)
   obj.set('pred_masks',masks1)
-  return obj
+  return obj, np_mask
 
-images_dir = pathlib.Path('drive/MyDrive/Pediatrics/Mannequins')
-images_save_dir = pathlib.Path('drive/MyDrive/Pediatrics/Detectron2-Mannequin-Predictions')
+images_dir = pathlib.Path('assets/Mannequin/RGB')
+images_save_dir = pathlib.Path('assets/Mannequin/SEGMENTATION')
 images_glob = images_dir.glob('*.png')
 
 for im_path in images_glob:
-  # im = cv2.imread("./input.jpg")
+  im_segmentation_name = f'{im_path.stem.split("-")[0]}-SEGMENTATION'
+  im_segmentation_path = f'{images_save_dir.joinpath(im_segmentation_name)}.png'
+  
   im = cv2.imread(f'{im_path.resolve()}')
   original_output = predictor(im)
-  specific_output = onlykeep_person_class(im, original_output)
-    
+  specific_output, mask_image = onlykeep_person_class(im, original_output)
+
   v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)  
   out = v.draw_instance_predictions(specific_output.to("cpu"))
-
-  cv2.imwrite(f'{images_save_dir.joinpath(im_path.stem)}.png', out.get_image()[:, :, ::-1])
+  # cv2.imwrite(im_segmentation_path, out.get_image()[:, :, ::-1])
+  cv2.imwrite(im_segmentation_path, mask_image)

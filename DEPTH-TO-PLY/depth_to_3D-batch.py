@@ -26,7 +26,7 @@ PLY_FORMAT_WITH_NORMALS_COLORS = '%f %f %f %f %f %f %d %d %d %d %d'
 '''
     PATH WHERE THE RGB, RGBD (DEPTH), SEGMENTATION IMAGES CAN BE FOUND
 '''
-BASE_PATH = pathlib.Path('/home/ashok/Pictures/Vidya/dataset').resolve()#pathlib.Path(__file__).parent.resolve()
+BASE_PATH = pathlib.Path('/home/ashok/Workspace/LearnMLNN/projects/Infant-pose-estimation/pipeline/assets/Mannequin/').resolve()#pathlib.Path(__file__).parent.resolve()
 DEPTH_IMAGES = BASE_PATH.joinpath('DEPTH').resolve()
 OUTPUT_FOLDER = BASE_PATH.joinpath('PLY').resolve()
 CAMERA_INTRINSICS = np.load(DEPTH_IMAGES.joinpath('camera_intrinsics.npy').resolve())
@@ -277,6 +277,8 @@ def batchDepthToPLY(
         rgb_name: str = d_png.stem.split('-')[0]
         rgb_image: pathlib.Path = d_png.parent.parent.joinpath('RGB').joinpath(f'{rgb_name}-RGB.png')
         seg_rgb_image: pathlib.Path = d_png.parent.parent.joinpath('SEGMENTATION').joinpath(f'{rgb_name}-SEGMENTATION.png')
+        # print(rgb_name)
+        # raise IndexError
         ply_np_data: np.ndarray = project3D(
                   rgb_image, d_png, 
                   output_folder, 
