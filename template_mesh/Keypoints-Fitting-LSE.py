@@ -77,11 +77,17 @@ def keypointsXYZ(flat_keypoints: list, depth_image_path: pathlib.Path, camera_in
     depth_image, max_depth = getDepthImage(depth_image_path)
 
     xyz_keypoints = []
+    plane_points = [Vector((0, 0, 1)), Vector((511, 0, 1)), Vector((511, 511, 1)), Vector((0, 511, 1))]
     for i in range(0, len(flat_keypoints), 3):
         x, y = int(flat_keypoints[i]), int(flat_keypoints[i + 1])
         z = depth_image[y, x] / max_depth
         x3D, y3D, z3D = ((x - cx) * z) / fx, ((y - cy) * z) / fy, z
         xyz_keypoints.append([x3D, y3D, z3D])
+    
+    for p_point in plane_points:
+        x, y, z = p_point
+        x3D, y3D, z3D = ((x - cx) * z) / fx, ((y - cy) * z) / fy, z
+        print(x3D, y3D, z3D)
 
     return np.array(xyz_keypoints)
 
