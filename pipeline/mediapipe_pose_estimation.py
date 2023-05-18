@@ -29,14 +29,13 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 options = PoseLandmarkerOptions(
     base_options=BaseOptions(model_asset_path=model_path),
     running_mode=VisionRunningMode.IMAGE,
-    min_pose_detection_confidence=MinConfidence)
+    min_pose_detection_confidence=MinConfidence,)
 
 detector = PoseLandmarker.create_from_options(options)
 
 def draw_landmarks_on_image(rgb_image, detection_result):
     pose_landmarks_list = detection_result.pose_landmarks
     annotated_image = np.copy(rgb_image)
-
     # Loop through the detected poses to visualize.
     for idx in range(len(pose_landmarks_list)):
         pose_landmarks = pose_landmarks_list[idx]
@@ -61,9 +60,10 @@ def detect_landmarks(im_path: pathlib.Path, detector: vision.PoseLandmarker)->np
     # Perform pose landmarking on the provided single image.
     # The pose landmarker must be created with the image mode.
     pose_landmarker_result = detector.detect(mp_image)
-
+    # print(pose_landmarker_result)
+    #Ensure that we send only the RGB channels if the loaded image is of RGBA format
     annotated_image = draw_landmarks_on_image(
-            mp_image.numpy_view(), pose_landmarker_result)
+            mp_image.numpy_view()[:,:,:3], pose_landmarker_result)
     
     return annotated_image
 
