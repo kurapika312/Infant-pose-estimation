@@ -64,8 +64,13 @@ def detect_landmarks(im_path: pathlib.Path, detector: vision.PoseLandmarker)->np
     #Ensure that we send only the RGB channels if the loaded image is of RGBA format
     annotated_image = draw_landmarks_on_image(
             mp_image.numpy_view()[:,:,:3], pose_landmarker_result)
-    
-    return annotated_image
+    normalized_landmarks = pose_landmarker_result.pose_landmarks[0]
+
+    annotated_landmarks = np.zeros((33, 3))
+    for i, n_landmark in enumerate(normalized_landmarks):
+        annotated_landmarks[i] = (n_landmark.x, n_landmark.y, n_landmark.z)
+
+    return annotated_image, annotated_landmarks.flatten()
 
 
 if __name__ == '__main__':

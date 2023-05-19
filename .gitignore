@@ -13,6 +13,7 @@ dist/
 **/video/**
 **/render/**
 .vscode
+*.blend1
 
 **/template_mesh/tests
 

@@ -79,10 +79,12 @@ predictor = DefaultPredictor(cfg)
 
 def detect_landmarks(im_path: pathlib.Path, predictor: DefaultPredictor)->np.ndarray:
   im = cv2.imread(f'{im_path.resolve()}')
-  outputs = predictor(im)  
-  v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)  
-  out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-  return out.get_image()[:, :, ::-1]
+  outputs = predictor(im)    
+  v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2) 
+  cpu_instances =  outputs["instances"].to("cpu")
+  out = v.draw_instance_predictions(cpu_instances)
+  annotations = cpu_instances.pred_keypoints[0].numpy().flatten()
+  return out.get_image()[:, :, ::-1], annotations
 
 
 if __name__ == '__main__':
@@ -102,7 +104,7 @@ if __name__ == '__main__':
 
   for im_path in images_glob:
     keypoints_im_path: pathlib.Path = images_save_dir.joinpath(f'{im_path.stem}-keypoints.jpg')
-    annotated_image: np.ndarray = detect_landmarks(im_path, predictor)
+    annotated_image, annotations = detect_landmarks(im_path, predictor)
     # im = cv2.imread(f'{im_path.resolve()}')
     # outputs = predictor(im)    
     # v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)  

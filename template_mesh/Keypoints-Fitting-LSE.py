@@ -87,7 +87,6 @@ def keypointsXYZ(flat_keypoints: list, depth_image_path: pathlib.Path, camera_in
     for p_point in plane_points:
         x, y, z = p_point
         x3D, y3D, z3D = ((x - cx) * z) / fx, ((y - cy) * z) / fy, z
-        print(x3D, y3D, z3D)
 
     return np.array(xyz_keypoints)
 
