@@ -11,7 +11,7 @@ from mediapipe_pose_estimation import detector, detect_landmarks as detect_landm
 
 
 if __name__ == '__main__':
-    input_images_dir = pathlib.Path('assets/Synthetic/RGB')
+    input_images_dir = pathlib.Path('assets/RSV/RGB')
     # input_images_dir = pathlib.Path('assets/RSV/color')
 
     output_images_dir = pathlib.Path('./output').joinpath(input_images_dir.parent.stem)

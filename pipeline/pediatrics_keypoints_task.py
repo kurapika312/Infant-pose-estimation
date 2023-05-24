@@ -82,7 +82,7 @@ def detect_landmarks(im_path: pathlib.Path, predictor: DefaultPredictor)->np.nda
   outputs = predictor(im)    
   v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2) 
   cpu_instances =  outputs["instances"].to("cpu")
-  out = v.draw_instance_predictions(cpu_instances)
+  out = v.draw_instance_predictions(cpu_instances)  
   annotations = cpu_instances.pred_keypoints[0].numpy().flatten()
   return out.get_image()[:, :, ::-1], annotations
 
