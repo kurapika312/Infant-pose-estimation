@@ -23,7 +23,7 @@
     "Thumb.L": {"name": "left_thumb", "mapped": 21},
     "Thumb.R": {"name": "right_thumb", "mapped": 22},
     "Hip.L": {"name": "left_hip", "mapped": 23},
-    "Hip.R": {"name": "right_hip", "mapped": 24,
+    "Hip.R": {"name": "right_hip", "mapped": 24},
     "Knee.L": {"name": "left_knee", "mapped": 25},
     "Knee.R": {"name": "right_knee", "mapped": 26},
     "Ankle.L": {"name": "left_ankle", "mapped": 27},

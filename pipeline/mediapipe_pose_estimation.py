@@ -56,7 +56,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
 def detect_landmarks(im_path: pathlib.Path, detector: vision.PoseLandmarker)->np.ndarray:
     # Load the input image from an image file.
     mp_image = mp.Image.create_from_file(f'{im_path.resolve()}')
-
+    width, height = mp_image.width, mp_image.height
     # Perform pose landmarking on the provided single image.
     # The pose landmarker must be created with the image mode.
     pose_landmarker_result = detector.detect(mp_image)
@@ -68,7 +68,7 @@ def detect_landmarks(im_path: pathlib.Path, detector: vision.PoseLandmarker)->np
 
     annotated_landmarks = np.zeros((33, 3))
     for i, n_landmark in enumerate(normalized_landmarks):
-        annotated_landmarks[i] = (n_landmark.x, n_landmark.y, n_landmark.z)
+        annotated_landmarks[i] = (n_landmark.x * width, n_landmark.y * height, n_landmark.z)
 
     return annotated_image, annotated_landmarks.flatten()
 

@@ -27,7 +27,7 @@ PLY_FORMAT_WITH_NORMALS_COLORS = '%f %f %f %f %f %f %d %d %d %d %d'
 '''
     PATH WHERE THE RGB, RGBD (DEPTH), SEGMENTATION IMAGES CAN BE FOUND
 '''
-BASE_PATH = pathlib.Path('/home/ashok/Workspace/LearnMLNN/projects/Infant-pose-estimation/pipeline/assets/Mannequin/').resolve()#pathlib.Path(__file__).parent.resolve()
+BASE_PATH = pathlib.Path('/home/ashok/Workspace/LearnMLNN/projects/Infant-pose-estimation/pipeline/assets/Synthetic/').resolve()#pathlib.Path(__file__).parent.resolve()
 DEPTH_IMAGES = BASE_PATH.joinpath('DEPTH').resolve()
 OUTPUT_FOLDER = BASE_PATH.joinpath('PLY').resolve()
 CAMERA_INTRINSICS = np.load(DEPTH_IMAGES.joinpath('camera_intrinsics.npy').resolve())
