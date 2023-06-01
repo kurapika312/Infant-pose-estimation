@@ -1,9 +1,10 @@
 #EXAMPLE RUN FROM TERMINAL 
 #blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/1-DEPTH.png -kpjs output/Synthetic/mediapipe_out/1-RGB_keypoints.json
 import bpy, bmesh
+
 import sys
+import time
 import logging
-import math
 import pathlib
 import json
 import argparse
@@ -11,6 +12,7 @@ import argparse
 import numpy as np
 import cv2
 
+import mathutils
 from mathutils import Vector, Matrix, Quaternion
 
 CONFIG_COCO: str = 'coco'
@@ -37,6 +39,31 @@ class CustomLoggingFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
+class TimeLog():
+    _messages: list[str] = []
+    _timings: list[float] = []
+    
+    def __init__(self) -> None:
+        pass
+    
+    def addMessage(self, msg: str, timeconsumed: float)->None:
+        index: int = len(self._messages) + 1 
+        self._messages.append(f'Line {index}: {msg}: {timeconsumed}')
+        self._timings.append(timeconsumed)
+    
+    @property
+    def messages(self)->list[str]:
+        return self._messages
+    
+    def __repr__(self) -> str:
+        messages: list[str] = self._messages[:]
+        total_time: float = sum(self._timings)
+        messages.append(f'Line {len(messages) + 1}: Total Time: {total_time}')
+        return '\n'.join(messages)
+
+    def __str__(self) -> str:
+        return self.__repr__()
+    
 class VertexGroup():
     vertices: list = []
     count: int = 0
@@ -62,10 +89,12 @@ class AlignmentArguments():
     camera_intrinsics_path: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('../').joinpath('config').joinpath('camera_intrinsics.npy')
     keypoints_to_blender_path: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('../').joinpath('config').joinpath('blazepose-to-blender-mapping.json')
     blender_to_keypoints_path: pathlib.Path = pathlib.Path(bpy.path.abspath('//')).joinpath('../').joinpath('config').joinpath('blender-to-blazepose-mapping.json')
+    rgb_image_path: pathlib.Path = None
+    segmentation_image_path: pathlib.Path = None
     depth_image_path: pathlib.Path = None
     keypoints_json_path: pathlib.Path = None
 
-    def __init__(self, system_arguments: str):        
+    def __init__(self, system_arguments: list[str]):        
         self._processArguments(system_arguments)
     
     def _processArguments(self, system_arguments)->None:
@@ -77,13 +106,16 @@ class AlignmentArguments():
         parser.add_argument('-lsetp', '--lse-type', dest='lsetype', type=str, default=self.lse_config)
         parser.add_argument('-ci', '--camera-intrinsics', dest='ci', type=pathlib.Path, default=self.camera_intrinsics_path)        
         parser.add_argument('-dimg', '--depth-image', dest='depth', type=pathlib.Path)
+        parser.add_argument('-rimg', '--rgb-image', dest='rgb', type=pathlib.Path)
+        parser.add_argument('-simg', '--seg-image', dest='segmentation', type=pathlib.Path)
         parser.add_argument('-kpjs', '--keypoints-json', dest='keypoints_json', type=pathlib.Path)
 
-        args = parser.parse_known_args(user_arguments)[0]
-        
+        args = parser.parse_known_args(user_arguments)[0]        
 
         self.lse_config = args.lsetype
         self.camera_intrinsics_path = args.ci
+        self.rgb_image_path = args.rgb
+        self.segmentation_image_path = args.segmentation
         self.depth_image_path = args.depth
         self.keypoints_json_path = args.keypoints_json
 
@@ -91,8 +123,12 @@ class AlignmentArguments():
             self.blender_to_keypoints_path = pathlib.Path(bpy.path.abspath('//')).joinpath('config').joinpath('blender-to-coco-mapping.json')
             self.keypoints_to_blender_path = pathlib.Path(bpy.path.abspath('//')).joinpath('config').joinpath('coco-to-blender-mapping.json')
         
+        if(self.rgb_image_path):
+            self.rgb_image_path = self.rgb_image_path.resolve()
+        if(self.segmentation_image_path):
+            self.segmentation_image_path = self.segmentation_image_path.resolve()
         if(self.depth_image_path):
-            self.depth_image_path = self.depth_image_path.resolve()
+            self.depth_image_path = self.depth_image_path.resolve()            
         if(self.keypoints_json_path):
             self.keypoints_json_path = self.keypoints_json_path.resolve()
 
@@ -112,17 +148,22 @@ class PointcloudRegistration():
     joints_mapping: dict
     joints_mapping_blender: dict
 
+    rgb_image: np.ndarray
+    segmentation_image: np.ndarray
     depth_image: np.ndarray
+    
     max_depth: float
     keypoints_xyz: np.ndarray
 
     vertex_group_lookup: dict
     logger: logging.RootLogger = logging.getLogger("")
+    
+    timelogger: TimeLog = TimeLog()
 
     def __init__(self):        
 
         self._template_mesh = self.context.view_layer.objects['Human_clean']
-        self.vertex_group_lookup = self._create_vertex_group_table(self.template_mesh)
+        self.vertex_group_lookup = self._create_vertex_group_table(self._template_mesh)
 
         self.alignment_arguments = AlignmentArguments(sys.argv)
         self._setLoggingProceedure()
@@ -130,12 +171,17 @@ class PointcloudRegistration():
         if(not self.alignment_arguments.depth_image_path or not self.alignment_arguments.keypoints_json_path):
             raise ValueError('Need both depth and 2d keypoints to register the pointcloud')
         
+        if(not self.alignment_arguments.rgb_image_path or not self.alignment_arguments.segmentation_image_path):
+            raise ValueError('Need both RGB and PERSON SEGMENTATION image to register the pointcloud')
+        
         self.fx, self.fy, self.cx, self.cy = self._getCameraIntrinsics(self.alignment_arguments.camera_intrinsics_path) 
         self.joints_mapping = self._getJointsMapping(self.alignment_arguments.blender_to_keypoints_path)
         self.joints_mapping_blender = self._getJointsMapping(self.alignment_arguments.keypoints_to_blender_path)
-
-
+        
+        self.rgb_image = cv2.imread(f'{self.alignment_arguments.rgb_image_path}', cv2.IMREAD_UNCHANGED)[:,:,:3]
+        self.segmentation_image = cv2.imread(f'{self.alignment_arguments.segmentation_image_path}', cv2.IMREAD_UNCHANGED)[:,:,:3]        
         self.depth_image, self.max_depth = self._getDepthImage(self.alignment_arguments.depth_image_path)
+        
         self.keypoints_xyz = self._getKeypoints3D(
             self._getKeypointsFlat(self.alignment_arguments.keypoints_json_path), (self.fx, self.fy, self.cx, self.cy), 
             self.depth_image, self.max_depth
@@ -155,7 +201,7 @@ class PointcloudRegistration():
         return bm
     
     def _update_evaluate_template_mesh(self)->bpy.types.Object:
-        depsgraph = bpy.context.evaluated_depsgraph_get()
+        depsgraph = self.context.evaluated_depsgraph_get()
         depsgraph.update()        
         #Get the evaluated mesh based on the depsgraph for correct positions
         mesh = self._template_mesh.evaluated_get(depsgraph)
@@ -251,6 +297,12 @@ class PointcloudRegistration():
         max_depth = np.max(raveled_depth)
         return depth_im, max_depth
     
+    def _d2ToD3(self, x: int, y: int)->tuple:
+        z = self.depth_image[y, x] / self.max_depth
+        x3D, y3D, z3D = ((x - self.cx) * z) / self.fx, ((y - self.cy) * z) / self.fy, z        
+        return x3D, y3D, z3D
+        
+        
     def _getKeypoints3D(self, flat_keypoints: list, camera_intrinsics: tuple, nd_depth_img: np.ndarray, max_depth: float) -> np.ndarray:
         fx, fy, cx, cy = camera_intrinsics
         depth_image = nd_depth_img
@@ -260,8 +312,9 @@ class PointcloudRegistration():
         plane_points = [Vector((0, 0, 1)), Vector((width, 0, 1)), Vector((width, height, 1)), Vector((0, height, 1))]
         for i in range(0, len(flat_keypoints), 3):
             x, y = int(flat_keypoints[i]), int(flat_keypoints[i + 1])
-            z = depth_image[y, x] / max_depth
-            x3D, y3D, z3D = ((x - cx) * z) / fx, ((y - cy) * z) / fy, z
+            # z = depth_image[y, x] / max_depth
+            # x3D, y3D, z3D = ((x - cx) * z) / fx, ((y - cy) * z) / fy, z
+            x3D, y3D, z3D = self._d2ToD3(x, y)            
             xyz_keypoints.append([x3D, y3D, z3D])
         
         for p_point in plane_points:
@@ -301,31 +354,30 @@ class PointcloudRegistration():
     
     def _nonRigidAlign(self, keypoint_xyz_positions: np.ndarray)->None:
         mapping: dict = self.joints_mapping
+        self._template_mesh.modifiers.clear()
+        bpy.ops.object.select_all(action="DESELECT")
+        self.context.view_layer.objects.active = self._template_mesh
+        bpy.ops.object.mode_set(mode='EDIT')
 
         for vgkey in self.vertex_group_lookup.keys():
+            bpy.ops.mesh.select_all(action="DESELECT")
             vgroup: VertexGroup = self.vertex_group_lookup[vgkey]
-            bpy.ops.object.select_all(action="DESELECT")
-            bpy.ops.object.empty_add(type='SPHERE')
-
-            index: int = mapping[vgroup.name]['mapped']
-            position: np.ndarray = keypoint_xyz_positions[index]
-
-            mean_position, _ = self._getMeanPosition(vgroup.vertices)
-
+            
+            self._template_mesh.vertex_groups.active_index = self._template_mesh.vertex_groups.get(vgroup.name).index
+            bpy.ops.object.vertex_group_select()
+            bpy.ops.object.hook_add_newob()            
+            
             hook_object: bpy.types.Object = self.context.selected_objects[0]
             hook_object.name = vgroup.name
-            hook_object.location = mean_position#position
             hook_object.empty_display_size = 1e-3
-
-            modifier = self._template_mesh.modifiers.new(vgroup.name, type='HOOK')
-            modifier.vertex_group = vgroup.name
-            modifier.object = None
+            
+            modifier = self._template_mesh.modifiers[-1]
+            modifier.name = vgroup.name
+            modifier.vertex_group = vgroup.name            
         
-        for mod in self._template_mesh.modifiers:
-            hook: bpy.types.Object = self.context.view_layer.objects.get(mod.name)
-            mod.object = hook
-
-        self.context.view_layer.update()
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.select_all(action="DESELECT")      
+        # self.context.view_layer.update()
         
         lse_vgroup = self._template_mesh.vertex_groups.new(name='LSE')
         lse_vertices = []
@@ -337,7 +389,7 @@ class PointcloudRegistration():
         lse_vgroup.add(lse_vertices, weight=1.0, type='REPLACE')
 
         lse_mod = self._template_mesh.modifiers.new('LSE-Deform', type='LAPLACIANDEFORM')
-        lse_mod.iterations = 2
+        lse_mod.iterations = 1
         lse_mod.vertex_group = lse_vgroup.name
         bpy.ops.object.laplaciandeform_bind({"object" : self._template_mesh}, modifier=lse_mod.name)
 
@@ -347,49 +399,98 @@ class PointcloudRegistration():
             index: int = mapping[vgroup.name]['mapped']
             position: np.ndarray = keypoint_xyz_positions[index]
             hook.location = position
-
-        self.context.view_layer.update()    
-
+            
+        
         # for vgkey in self.vertex_group_lookup.keys():
-        #     index: int = mapping[vgroup.name]['mapped']
-        #     position: np.ndarray = keypoint_xyz_positions[index]
+        #     mod = self._template_mesh.modifiers.get(vgkey)
+        #     bpy.ops.object.modifier_apply(modifier=mod.name)
+            
+        # bpy.ops.object.modifier_apply(modifier=lse_mod.name)
+        # self._template_mesh.modifiers.clear()
 
-        #     print(f'VGROUP NAME: {vgroup.name}, MAPPED INDEX : {index}')
-
-        #     vgroup: VertexGroup = self.vertex_group_lookup[vgkey]
-        #     mean_position, vertex_positions = self._getMeanPosition(vgroup.vertices)
-        #     delta_vectors: np.ndarray = mean_position - vertex_positions
-        #     new_vertex_positions: np.ndarray = mean_position - delta_vectors
-        #     print('DELTA VECTOR SHAPE : ', delta_vectors.shape)
-        #     for i, vid in enumerate(vgroup.vertices):
-        #         vertex = self._template_mesh.data.vertices[vid]
-        #         delta_vector = delta_vectors[i]
-        #         vertex.co = (self._template_mesh.matrix_world.copy().inverted()@Vector(position)) #+ Vector(delta_vector)
+        # self.context.view_layer.update() 
 
 
     #Step 3 of the method - alignment of avatar with the depth map using uplifted joint positions in 3D
-    def _alignmentAvatarDepthMap(self)->None:
-        #Step 3.1: First perform the rigid alignment
-        self._rigidAlign(self.keypoints_xyz)
-        #Step 3.2: Then perform the non-rigid alignment using LSE
-        self._nonRigidAlign(self.keypoints_xyz)
+    def _templateFitting(self)->None:
         
+        #Step 3.1: First perform the rigid alignment
+        ralign_start: float = time.time()
+        self._rigidAlign(self.keypoints_xyz)
+        ralign_end: float = time.time()
+        
+        self.timelogger.addMessage('Time for rigid alignment(Step 3.1): ', (ralign_end - ralign_start))
+
+        #Step 3.2: Then perform the non-rigid alignment using LSE
+        nralign_start: float = time.time()
+        self._nonRigidAlign(self.keypoints_xyz)
+        nralign_end: float = time.time()
+        self.timelogger.addMessage('Time for non-rigid alignment(Step 3.2): ', (nralign_end - nralign_start))
+    
+    def _surfaceRegistration(self)->None:
+        time_start = time.time()
+        bpy_texture_image = bpy.data.images.get('template-Human_clean-uv-layout.png')
+        uv_image = cv2.imread(bpy.path.abspath(bpy_texture_image.filepath), cv2.IMREAD_UNCHANGED)[:,:,:3]
+                
+        depsgraph = self.context.evaluated_depsgraph_get()
+        depsgraph.update()        
+        
+        mesh_bvh = mathutils.bvhtree.BVHTree.FromObject(self._template_mesh, depsgraph=depsgraph)
+        polygons = self._template_mesh.data.polygons
+        uvlayerdata = self._template_mesh.data.uv_layers.get('UVMap').data
+        
+        
+        rgb_image_output = np.copy(self.rgb_image)
+        non_black_pixels_mask = np.any(self.segmentation_image != [0, 0, 0], axis=-1)  
+        rows, columns = np.where(non_black_pixels_mask != 0)
+        
+        for y, x in zip(rows, columns):
+            x3D, y3D, z3D = self._d2ToD3(x, y)
+            local_coords = self._template_mesh.matrix_world.copy().inverted()@Vector((x3D, y3D, z3D))
+            _, _, fid, _ = mesh_bvh.find_nearest(local_coords)
+            face = polygons[fid]
+            uvs = np.zeros((len(face.loop_indices), 2))
+            for i, lid in enumerate(face.loop_indices):
+                u, v = uvlayerdata[lid].uv
+                uvs[i] = (u, v)
+            u, v = uvs.mean(axis=0)            
+            uv_x = int(u * uv_image.shape[1])
+            uv_y = int((1 - v) * uv_image.shape[0])
+            
+            uv_rgb = uv_image[uv_y, uv_x]
+            current_rgb = self.rgb_image[y, x]
+            
+            rgb_image_output[y, x] = ((uv_rgb * 0.6) + (current_rgb * 0.4)).astype(int)
+        
+        img_name: str = self.alignment_arguments.keypoints_json_path.stem
+        img_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{img_name}.jpg')
+        cv2.imwrite(f'{img_file_path}', rgb_image_output)
+        time_end = time.time()
+        self.timelogger.addMessage('Time for registration(Step 4): ', time_end - time_start)
+            
+    
 
     def _register(self):
 
         #Blender starts from step 3 of the pipeline 
         #Step 3: Align avatar with the depth map       
-        self._alignmentAvatarDepthMap()
+        self._templateFitting()
 
-        #Step 4: Registration using closest points
+        #Step 4: Registration of depth map on the template 
+        self._surfaceRegistration()
+        
         #Step 5: 2D Surface Reconstruction
         #Step 6: Volume estimation
         #Step 7: Respiratory analysis - probably will be done outside Blender
 
         blend_name: str = self.alignment_arguments.keypoints_json_path.stem
-        blend_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{blend_name}.blend')
-        print('SAVE BLEND FILE TO ', blend_file_path)
-        bpy.ops.wm.save_as_mainfile(filepath=f'{blend_file_path}')
+        # blend_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{blend_name}.blend')
+        # print('SAVE BLEND FILE TO ', blend_file_path)
+        # bpy.ops.wm.save_as_mainfile(filepath=f'{blend_file_path}')
+        log_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{blend_name}.log')
+        f = open(f'{log_file_path}', 'w')
+        f.write(f'{self.timelogger}')
+        f.close()
         sys.exit(0)
     
     @property
