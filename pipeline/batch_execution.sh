@@ -1,0 +1,13 @@
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/1-DEPTH.png -kpjs output/Synthetic/mediapipe_out/1-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/1-RGB.png -simg ./assets/Synthetic/SEGMENTATION/1-SEGMENTATION.png & 
+
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/2-DEPTH.png -kpjs output/Synthetic/mediapipe_out/2-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/2-RGB.png -simg ./assets/Synthetic/SEGMENTATION/2-SEGMENTATION.png & 
+
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/3-DEPTH.png -kpjs output/Synthetic/mediapipe_out/3-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/3-RGB.png -simg ./assets/Synthetic/SEGMENTATION/3-SEGMENTATION.png & 
+
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/4-DEPTH.png -kpjs output/Synthetic/mediapipe_out/4-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/4-RGB.png -simg ./assets/Synthetic/SEGMENTATION/4-SEGMENTATION.png & 
+
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/6-DEPTH.png -kpjs output/Synthetic/mediapipe_out/6-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/6-RGB.png -simg ./assets/Synthetic/SEGMENTATION/6-SEGMENTATION.png & 
+
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/7-DEPTH.png -kpjs output/Synthetic/mediapipe_out/7-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/7-RGB.png -simg ./assets/Synthetic/SEGMENTATION/7-SEGMENTATION.png & 
+
+blender312 ./TEMPLATE-ALIGNMENT/blends/Keypoints-Fitting-MediaPipe-LSE.blend -b --python ./TEMPLATE-ALIGNMENT/bl-scripts/Keypoints-Fitting-LSE.py -- -dimg ./assets/Synthetic/DEPTH/8-DEPTH.png -kpjs output/Synthetic/mediapipe_out/8-RGB_keypoints.json  -rimg ./assets/Synthetic/RGB/8-RGB.png -simg ./assets/Synthetic/SEGMENTATION/8-SEGMENTATION.png 

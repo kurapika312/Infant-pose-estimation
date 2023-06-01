@@ -10,6 +10,7 @@ import json
 import argparse
 
 import numpy as np
+import scipy
 import cv2
 
 import mathutils
@@ -83,6 +84,38 @@ class VertexGroup():
     def __str__(self) -> str:
         return f'Name: {self.name}, Count: #{self.count}'
 
+class MeshVolume():
+    _meshVolume: float = 0.0
+    _mesh: bpy.types.Object
+
+
+    def __init__(self, mesh: bpy.types.Object) -> None:
+        self._mesh = mesh
+        self._meshVolume = self._calculateVolume()
+
+    def _signedTriangleVolume(self, v1, v2, v3)->float:
+        return v1.dot(v2.cross(v3)) / 6.0
+
+    def _calculateVolume(self)->float:
+        total_volume: float = 0.0
+        vertices = self._mesh.data.vertices
+        for polygon in self._mesh.data.polygons:
+            v1 = vertices[polygon.vertices[0]].co
+            v2 = vertices[polygon.vertices[1]].co
+            v3 = vertices[polygon.vertices[2]].co
+            total_volume += self._signedTriangleVolume(v1, v2, v3)
+
+        return abs(total_volume)
+
+    @property
+    def volume(self)->float:
+        return self._meshVolume
+    
+    def __str__(self) -> str:
+        return f'Volume of Mesh ({self._mesh.name}) is: {self._meshVolume}'
+
+    def __repr__(self) -> str:
+        return self.__str__()
 
 class AlignmentArguments():
     lse_config: str = CONFIG_BLAZEPOSE
@@ -157,6 +190,41 @@ class PointcloudRegistration():
 
     vertex_group_lookup: dict
     logger: logging.RootLogger = logging.getLogger("")
+
+    segmentation_colors: np.ndarray = np.array(
+    [
+        [0, 0, 0],
+        [255, 0, 0],
+        [0, 255, 0],
+        [0, 0, 255],
+        [255, 119, 0],
+    ], dtype=int)
+
+    segmentation_regions: list = [
+        'background',
+        'face',
+        'arms',
+        'legs',
+        'thorax'
+    ]
+    segmentation_points_3d: dict = {
+        'background': np.zeros((0, 3)),
+        'face': np.zeros((0, 3)),
+        'arms': np.zeros((0, 3)),
+        'legs': np.zeros((0, 3)),
+        'thorax': np.zeros((0, 3))
+    }
+
+    segmentation_points_2d: dict = {
+        'background': np.zeros((0, 2)),
+        'face': np.zeros((0, 2)),
+        'arms': np.zeros((0, 2)),
+        'legs': np.zeros((0, 2)),
+        'thorax': np.zeros((0, 2))
+    }
+
+    # Create the kd tree for searching through the segmentation colors
+    segmentation_palette: scipy.spatial.cKDTree = scipy.spatial.cKDTree(segmentation_colors)
     
     timelogger: TimeLog = TimeLog()
 
@@ -179,7 +247,11 @@ class PointcloudRegistration():
         self.joints_mapping_blender = self._getJointsMapping(self.alignment_arguments.keypoints_to_blender_path)
         
         self.rgb_image = cv2.imread(f'{self.alignment_arguments.rgb_image_path}', cv2.IMREAD_UNCHANGED)[:,:,:3]
-        self.segmentation_image = cv2.imread(f'{self.alignment_arguments.segmentation_image_path}', cv2.IMREAD_UNCHANGED)[:,:,:3]        
+        self.rgb_image = cv2.cvtColor(self.rgb_image, cv2.COLOR_BGR2RGB)
+
+        self.segmentation_image = cv2.imread(f'{self.alignment_arguments.segmentation_image_path}', cv2.IMREAD_UNCHANGED)[:,:,:3]     
+        self.segmentation_image = cv2.cvtColor(self.segmentation_image, cv2.COLOR_BGR2RGB)  
+
         self.depth_image, self.max_depth = self._getDepthImage(self.alignment_arguments.depth_image_path)
         
         self.keypoints_xyz = self._getKeypoints3D(
@@ -191,9 +263,11 @@ class PointcloudRegistration():
 
     # Get the bmesh mesh data, it is the job of the user to call bm.free after the operations are finished
 
-    def _getBMMesh(self)->bmesh.types.BMesh:
+    def _getBMMesh(self, mesh_object: bpy.types.Object=None)->bmesh.types.BMesh:
+        if(not mesh_object):
+            mesh_object = self._template_mesh
         bm = bmesh.new()
-        bm.from_mesh(self._template_mesh.data)
+        bm.from_mesh(mesh_object.data)
         bm.verts.ensure_lookup_table()
         bm.edges.ensure_lookup_table()
         bm.faces.ensure_lookup_table()
@@ -322,7 +396,59 @@ class PointcloudRegistration():
             x3D, y3D, z3D = ((x - cx) * z) / fx, ((y - cy) * z) / fy, z
         
         return np.array(xyz_keypoints)
+    
+    def _createAndExportMesh(self, filepath: pathlib.Path, vertices: np.ndarray, faces: np.ndarray)->bpy.types.Object:
+        mesh_name: str = filepath.stem
+        collection: bpy.types.Collection = bpy.data.collections.get('Region-Meshes', bpy.data.collections.new('Region-Meshes'))
+
+        region_mesh: bpy.types.Mesh = bpy.data.meshes.new(mesh_name)
+        region_mesh.from_pydata(vertices.tolist(), [], faces.tolist())
+        region_mesh.update()
+
+        region_object: bpy.types.Object = bpy.data.objects.new(mesh_name, region_mesh)
+
+        if(not self.context.scene.collection.children.get(collection.name)):
+            self.context.scene.collection.children.link(collection)
+
+        collection.objects.link(region_object)
+
+        bm = self._getBMMesh(region_object)
+        face_perimeters = []
+        # face_indices = []
+        for face in bm.faces:
+            face_perimeters.append(face.calc_perimeter())
+            # face_indices.append(face.index)
+
+        bm.free()
+        _, bin_edges = np.histogram(face_perimeters, bins=5)
+        invalid_face_indices = np.where(face_perimeters >= bin_edges[1])[0]
+
+        bpy.ops.object.select_all(action="DESELECT")
+        region_object.select_set(True)
+        self.context.view_layer.objects.active = region_object
         
+        bpy.ops.object.mode_set(mode='EDIT')
+
+        bm = bmesh.from_edit_mesh(region_mesh)
+        bm.faces.ensure_lookup_table()
+
+        bpy.ops.mesh.select_all(action="DESELECT")
+        for fid in invalid_face_indices:
+            bm.faces[fid].select_set(True)
+        
+        bpy.ops.mesh.delete(type='EDGE_FACE')
+
+        bmesh.update_edit_mesh(region_mesh)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        bm.free()
+
+        bpy.ops.export_mesh.ply(filepath=f'{filepath}', filter_glob='*.ply', use_ascii=True, use_selection=True, use_normals=False, use_uv_coords=True, use_colors=True)
+        bpy.ops.object.select_all(action="DESELECT")
+
+        return region_object
+
+
     def _rigidAlign(self, keypoint_xyz_positions: np.ndarray)->None:        
         hook_positions = np.zeros((len(self.joints_mapping.keys()), 3))
         target_positions = np.zeros((keypoint_xyz_positions.shape[0], 3))
@@ -427,10 +553,11 @@ class PointcloudRegistration():
         nralign_end: float = time.time()
         self.timelogger.addMessage('Time for non-rigid alignment(Step 3.2): ', (nralign_end - nralign_start))
     
-    def _surfaceRegistration(self)->None:
+    def _surfaceRegistration(self)->np.ndarray:
         time_start = time.time()
         bpy_texture_image = bpy.data.images.get('template-Human_clean-uv-layout.png')
         uv_image = cv2.imread(bpy.path.abspath(bpy_texture_image.filepath), cv2.IMREAD_UNCHANGED)[:,:,:3]
+        uv_image = cv2.cvtColor(uv_image, cv2.COLOR_BGR2RGB)
                 
         depsgraph = self.context.evaluated_depsgraph_get()
         depsgraph.update()        
@@ -459,16 +586,36 @@ class PointcloudRegistration():
             
             uv_rgb = uv_image[uv_y, uv_x]
             current_rgb = self.rgb_image[y, x]
-            
-            rgb_image_output[y, x] = ((uv_rgb * 0.6) + (current_rgb * 0.4)).astype(int)
+
+            _, index = self.segmentation_palette.query(uv_rgb)
+            region_key: str = self.segmentation_regions[index]
+
+            self.segmentation_points_3d[region_key] = np.vstack((self.segmentation_points_3d[region_key], (x3D, y3D, z3D)))
+            self.segmentation_points_2d[region_key] = np.vstack((self.segmentation_points_2d[region_key], (x, y)))         
+
+            rgb_image_output[y, x] = ((uv_rgb * 0.6) + (current_rgb * 0.4)).astype(int)        
         
-        img_name: str = self.alignment_arguments.keypoints_json_path.stem
-        img_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{img_name}.jpg')
-        cv2.imwrite(f'{img_file_path}', rgb_image_output)
         time_end = time.time()
-        self.timelogger.addMessage('Time for registration(Step 4): ', time_end - time_start)
-            
+        self.timelogger.addMessage('Time for registration(Step 4): ', time_end - time_start)     
+
+        return rgb_image_output      
     
+    def _surfaceReconstruction(self)->dict:
+        time_start = time.time()
+        meshes_dictionary: dict = {}
+        for region_key in self.segmentation_points_2d.keys():
+            if(region_key == 'background'):
+                continue
+            points_2d = self.segmentation_points_2d[region_key]
+            points_3d = self.segmentation_points_3d[region_key]
+            triangulation = scipy.spatial.Delaunay(points_2d)
+            graph_connection = triangulation.simplices
+            meshes_dictionary[region_key] = {'vertices': points_3d, 'faces': graph_connection}
+        
+        time_end = time.time()
+        self.timelogger.addMessage('Time for surface reconstruction(Step 5): ', time_end - time_start) 
+        return meshes_dictionary   
+
 
     def _register(self):
 
@@ -477,20 +624,54 @@ class PointcloudRegistration():
         self._templateFitting()
 
         #Step 4: Registration of depth map on the template 
-        self._surfaceRegistration()
+        segmented_image: np.ndarray = self._surfaceRegistration()
+        segmented_image = cv2.cvtColor(segmented_image, cv2.COLOR_RGB2BGR)
         
         #Step 5: 2D Surface Reconstruction
-        #Step 6: Volume estimation
-        #Step 7: Respiratory analysis - probably will be done outside Blender
+        meshes_dictionary: dict = self._surfaceReconstruction()        
 
-        blend_name: str = self.alignment_arguments.keypoints_json_path.stem
-        # blend_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{blend_name}.blend')
-        # print('SAVE BLEND FILE TO ', blend_file_path)
-        # bpy.ops.wm.save_as_mainfile(filepath=f'{blend_file_path}')
-        log_file_path: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath(f'{blend_name}.log')
+        # Step 6, 7 and Final step: Volume estimation, respiratory analysis, and saving all the data
+
+        thorax_volume: MeshVolume = None
+
+        results_dir: pathlib.Path = self.alignment_arguments.keypoints_json_path.parent.joinpath('pipeline_results')
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        #Save the segmentation image
+        img_name: str = self.alignment_arguments.keypoints_json_path.stem
+        img_file_path: pathlib.Path = results_dir.joinpath(f'{img_name}.jpg')
+        cv2.imwrite(f'{img_file_path}', segmented_image)
+
+        region_meshes_dir: pathlib.Path = results_dir.joinpath('meshes').joinpath(self.alignment_arguments.keypoints_json_path.stem)
+        region_meshes_dir.mkdir(parents=True, exist_ok=True)
+        #Save the region meshes
+        for region_key in meshes_dictionary:
+            mesh_file_name: str = f'{self.alignment_arguments.keypoints_json_path.stem}-{region_key}'
+            file_path: pathlib.Path = region_meshes_dir.joinpath(f'{mesh_file_name}.ply')
+            mesh_data: dict = meshes_dictionary[region_key]
+            vertices: np.ndarray = mesh_data['vertices']
+            faces: np.ndarray = mesh_data['faces']
+            mesh_object: bpy.types.Object = self._createAndExportMesh(file_path, vertices, faces)
+            if(region_key == 'thorax'):
+                #Step 6: Volume estimation
+                thorax_volume = MeshVolume(mesh_object)
+                #Step 7: Respiratory analysis - probably will be done outside Blender
+
+
+        #Save the log file
+        log_filename: str = self.alignment_arguments.keypoints_json_path.stem
+        log_file_path: pathlib.Path = results_dir.joinpath(f'{log_filename}.log')
         f = open(f'{log_file_path}', 'w')
         f.write(f'{self.timelogger}')
-        f.close()
+        if(thorax_volume):
+            f.write(f'\n{thorax_volume}')
+        f.close()        
+
+        blend_filename: str = self.alignment_arguments.keypoints_json_path.stem
+        blend_file_path: pathlib.Path = results_dir.joinpath(f'{blend_filename}.blend')
+        # print('SAVE BLEND FILE TO ', blend_file_path)
+        bpy.ops.wm.save_as_mainfile(filepath=f'{blend_file_path}')
+
         sys.exit(0)
     
     @property
