@@ -68,7 +68,8 @@ def detect_landmarks(im_path: pathlib.Path, detector: vision.PoseLandmarker)->np
 
     annotated_landmarks = np.zeros((33, 3))
     for i, n_landmark in enumerate(normalized_landmarks):
-        annotated_landmarks[i] = (n_landmark.x * width, n_landmark.y * height, n_landmark.z)
+        x_ratio, y_ratio = min(1.0, n_landmark.x), min(1.0, n_landmark.y)
+        annotated_landmarks[i] = ((x_ratio * width)-1, (y_ratio * height)-1, n_landmark.z)
 
     return annotated_image, annotated_landmarks.flatten()
 

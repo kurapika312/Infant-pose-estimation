@@ -608,7 +608,10 @@ class PointcloudRegistration():
                 continue
             points_2d = self.segmentation_points_2d[region_key]
             points_3d = self.segmentation_points_3d[region_key]
-            triangulation = scipy.spatial.Delaunay(points_2d)
+            try:
+                triangulation = scipy.spatial.Delaunay(points_2d)
+            except ValueError:
+                raise ValueError(f'{self.alignment_arguments.rgb_image_path}, has problems with Delaunay')
             graph_connection = triangulation.simplices
             meshes_dictionary[region_key] = {'vertices': points_3d, 'faces': graph_connection}
         
@@ -652,15 +655,20 @@ class PointcloudRegistration():
             vertices: np.ndarray = mesh_data['vertices']
             faces: np.ndarray = mesh_data['faces']
             mesh_object: bpy.types.Object = self._createAndExportMesh(file_path, vertices, faces)
+
             if(region_key == 'thorax'):
+                time_start: float = time.time()
                 #Step 6: Volume estimation
                 thorax_volume = MeshVolume(mesh_object)
+                time_end: float = time.time()
+                self.timelogger.addMessage('Time for Volume Estimation(Step 6): ', time_end - time_start) 
                 #Step 7: Respiratory analysis - probably will be done outside Blender
 
 
         #Save the log file
         log_filename: str = self.alignment_arguments.keypoints_json_path.stem
         log_file_path: pathlib.Path = results_dir.joinpath(f'{log_filename}.log')
+
         f = open(f'{log_file_path}', 'w')
         f.write(f'{self.timelogger}')
         if(thorax_volume):

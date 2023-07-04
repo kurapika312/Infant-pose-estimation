@@ -1,0 +1,1 @@
+#TO EXTRACT DEPTH AND RGB FROM MKV FILES: https://github.com/microsoft/Azure-Kinect-Sensor-SDK/issues/1425

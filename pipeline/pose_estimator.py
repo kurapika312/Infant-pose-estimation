@@ -1,4 +1,5 @@
 import pathlib 
+import tqdm
 import json
 import numpy as np
 import cv2
@@ -11,13 +12,13 @@ from mediapipe_pose_estimation import detector, detect_landmarks as detect_landm
 
 
 if __name__ == '__main__':
-    input_images_dir = pathlib.Path('assets/Synthetic/RGB')
+    input_images_dir = pathlib.Path('assets/Ashok-RGB2D/RGB')
     # input_images_dir = pathlib.Path('assets/RSV/color')
 
     output_images_dir = pathlib.Path('./output').joinpath(input_images_dir.parent.stem)
     images_glob = get_images(input_images_dir)
 
-    for im_path in images_glob:
+    for im_path in tqdm.tqdm(images_glob):
         annotated_detectron2, annotations_detectron2 = detect_landmarks_detectron2(im_path, predictor)
         annotated_mediapipe, annotations_mediapipe = detect_landmarks_mediapipe(im_path, detector)
 

@@ -1,0 +1,4 @@
+#How to run docker with opengl support https://github.com/AuroAi/carla_apollo_bridge/issues/30
+#How to add xhost for docker to access https://askubuntu.com/questions/1201103/docker-x11-fails-to-open-display
+#Exact command to run docker with opengl support
+docker run -it  --name=azuregl --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix:rw -v /usr/lib/nvidia:/usr/lib/nvidia --device /dev/dri --rm -e __NV_PRIME_RENDER_OFFLOAD=1 -e __GLX_VENDOR_LIBRARY_NAME=nvidia -e DISPLAY=$DISPLAY  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all --gpus=all --name=carla-server --net=host -d nvidia-azure-env

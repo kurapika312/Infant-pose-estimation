@@ -7,4 +7,4 @@ def get_images(images_dir: pathlib.Path)->list:
         glob_result = images_dir.glob(type)
         images_glob.extend(glob_result)
 
-    return images_glob
+    return sorted(images_glob)
